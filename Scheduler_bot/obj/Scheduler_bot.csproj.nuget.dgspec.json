@@ -55,9 +55,17 @@
               "target": "Package",
               "version": "[7.0.18, )"
             },
+            "Microsoft.Extensions.Configuration.Json": {
+              "target": "Package",
+              "version": "[7.0.0, )"
+            },
             "Npgsql.EntityFrameworkCore.PostgreSQL": {
               "target": "Package",
               "version": "[7.0.11, )"
+            },
+            "PRTelegramBot": {
+              "target": "Package",
+              "version": "[0.5.5.1, )"
             },
             "Telegram.Bot": {
               "target": "Package",

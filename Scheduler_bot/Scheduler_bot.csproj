@@ -13,8 +13,55 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="7.0.0" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="7.0.11" />
+    <PackageReference Include="PRTelegramBot" Version="0.5.5.1" />
     <PackageReference Include="Telegram.Bot" Version="19.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="appconfig.json" />
+    <None Remove="C:\Users\.eski\.nuget\packages\prtelegrambot\0.5.5.1\build\\README.txt" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="C:\Users\.eski\.nuget\packages\prtelegrambot\0.5.5.1\build\\README.txt" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="C:\Users\.eski\.nuget\packages\prtelegrambot\0.5.5.1\build\\README.txt" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="C:\Users\.eski\.nuget\packages\prtelegrambot\0.5.5.1\build\\README.txt" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="C:\Users\.eski\.nuget\packages\prtelegrambot\0.5.5.1\build\\README.txt" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="C:\Users\.eski\.nuget\packages\prtelegrambot\0.5.5.1\build\\README.txt" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="C:\Users\.eski\.nuget\packages\prtelegrambot\0.5.5.1\build\\README.txt" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="appconfig.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Remove="C:\Users\.eski\.nuget\packages\prtelegrambot\0.5.5.1\build\\README.txt" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Update="C:\Users\.eski\.nuget\packages\prtelegrambot\0.5.5.1\build\\README.txt">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
 </Project>

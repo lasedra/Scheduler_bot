@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Scheduler_bot")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+a58b11648b9e1098bac7e64af71e9afb1fb5462c")]
 [assembly: System.Reflection.AssemblyProductAttribute("Scheduler_bot")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Scheduler_bot")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
