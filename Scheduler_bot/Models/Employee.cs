@@ -17,11 +17,11 @@ public partial class Employee
 
     public string Password { get; set; } = null!;
 
-    public string TelegramId { get; set; } = null!;
-
     public string PhoneNumber { get; set; } = null!;
 
     public string? EMail { get; set; }
+
+    public bool TelegramConfirmed { get; set; }
 
     public virtual ICollection<DailyScheduleBody> DailyScheduleBodies { get; set; } = new List<DailyScheduleBody>();
 

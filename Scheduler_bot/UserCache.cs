@@ -17,13 +17,11 @@ namespace Scheduler_bot
 
         public string Password { get; set; } = null!;
 
-        //TODO: TelegramId может отсутствовать
-        public static string tempTelegramId { get; set; } = null!;
-        public string TelegramId { get; set; } = null!;
-
         public string PhoneNumber { get; set; } = null!;
 
         public string? EMail { get; set; }
+
+        public bool TelegramConfirmed { get; set; }
 
         public virtual ICollection<DailyScheduleBody> DailyScheduleBodies { get; set; } = new List<DailyScheduleBody>();
 
@@ -36,7 +34,7 @@ namespace Scheduler_bot
             Role = loggingEmployee.Role;
             Login = loggingEmployee.Login;
             Password = loggingEmployee.Password;
-            TelegramId = loggingEmployee.TelegramId;
+            TelegramConfirmed = loggingEmployee.TelegramConfirmed;
             PhoneNumber = loggingEmployee.PhoneNumber;
             EMail = loggingEmployee.EMail is not null ? loggingEmployee.EMail : "Почта не указана";
 
@@ -45,7 +43,14 @@ namespace Scheduler_bot
 
         public string GetRoleString()
         {
-            return this.Role ? "менеджер учебного процесса" : "преподаватель";
+            if(Role == true)
+            {
+                return "менеджер учебного процесса";
+            }
+            else
+            {
+                return "преподаватель";
+            }
         }
 
         public bool ClearData()
@@ -56,7 +61,7 @@ namespace Scheduler_bot
             Role = false;
             Login = string.Empty;
             Password = string.Empty;
-            TelegramId = string.Empty;
+            TelegramConfirmed = false;
             PhoneNumber = string.Empty;
             EMail = string.Empty;
             return true;

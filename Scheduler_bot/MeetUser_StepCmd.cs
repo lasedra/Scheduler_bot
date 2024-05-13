@@ -6,6 +6,7 @@ using PRTelegramBot.Utils;
 using Scheduler_bot.Models;
 using Telegram.Bot;
 using Telegram.Bot.Types;
+using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
 
 namespace Scheduler_bot
@@ -15,79 +16,124 @@ namespace Scheduler_bot
         static IConfiguration AppConfig = new ConfigurationBuilder().AddJsonFile("appconfig.json", optional: false, reloadOnChange: true).Build();
         static SchedulerDbContext DbContext = new(AppConfig.GetConnectionString("localhost"));
 
-
-        [SlashHandler("/login")]
+        [SlashHandler("/start")]
         public static async Task StepZero(ITelegramBotClient botClient, Update update)
         {
-            update.ClearCacheData();
-            update.RegisterStepHandler(new StepTelegram(StepOne, new UserCache()));
+            update.ClearStepUserHandler();
+            var handler = update.GetStepHandler<StepTelegram>();
+            if (handler != null && handler!.GetCache<UserCache>().TelegramConfirmed)
+            {
+                await PRTelegramBot.Helpers.Message.Send(botClient, update,
+                        msg: $"Мы уже знакомы, {handler!.GetCache<UserCache>().Name})" +
+                             "\nМожешь продолжать работу");
+            }
+            else
+            {
+                update.RegisterStepHandler(new StepTelegram(StepOne, new UserCache()));
 
-            string msg = "Привет! Я - SchedulerBot. Я помогу тебе с составлением расписания" +
-                         "\nДля начала введи свой логин:";
+                var menuContent = new List<KeyboardButton>() { KeyboardButton.WithRequestContact("Поделиться номером") };
+                var menu = MenuGenerator.ReplyKeyboard(1, menuContent);
 
-            await PRTelegramBot.Helpers.Message.Send(botClient, update, msg);
+                await PRTelegramBot.Helpers.Message.Send(botClient, update,
+                    msg: "Привет! Я - SchedulerBot. Я помогу тебе с составлением расписания" +
+                         "\nМне нужен твой номер телефона, чтобы знать кто-ты",
+                    option: new OptionMessage() { MenuReplyKeyboardMarkup = menu });
+            }
         }
 
         public static async Task StepOne(ITelegramBotClient botClient, Update update)
         {
             var handler = update.GetStepHandler<StepTelegram>();
-            handler!.GetCache<UserCache>().Login = update.Message.Text;
-            string userLogin = handler!.GetCache<UserCache>().Login;
+            Message? message = update.Message;
 
-            var loggingUser = DbContext.Employees.FirstOrDefault(c => c.Login == userLogin);
-            if (loggingUser != null)
+            if (message != null && message.Type == MessageType.Contact && message.Contact != null)
             {
-                handler.RegisterNextStep(StepTwo);
-                await PRTelegramBot.Helpers.Message.Send(botClient, update,
-                    msg: "Я вас узнал!" +
-                         "\nТеперь введите пароль:");
+                string userPhone = message.Contact.PhoneNumber
+                    .Replace('+', ' ')
+                    .Replace('(', ' ')
+                    .Replace(')', ' ').Trim();
+                var theUser = DbContext.Employees.FirstOrDefault(c => c.PhoneNumber == userPhone);
+
+                if(theUser != null)
+                {
+                    handler!.RegisterNextStep(StepTwo);
+                    handler!.GetCache<UserCache>().PhoneNumber = theUser.PhoneNumber;
+                    await PRTelegramBot.Helpers.Message.Send(botClient, update,
+                        msg: $"Отлично!" +
+                             "\nТеперь введи логин");
+                }
+                else
+                {
+                    await PRTelegramBot.Helpers.Message.Send(botClient, update,
+                        msg: "Такой номер мне не извествен(" +
+                             "\nПопробуй ещё раз");
+                }
             }
             else
-            {
-                var menuContent = new List<KeyboardButton>() { new("/login") };
-                var menu = MenuGenerator.ReplyKeyboard(1, menuContent);
-
-                await PRTelegramBot.Helpers.Message.Send(botClient, update,
-                    msg: "К сожалению, такой учётной записи не существует." +
-                         "\nОбратитесь к менеджеру или попробуйте авторизоваться снова.",
-                    option: new OptionMessage() { MenuReplyKeyboardMarkup = menu });
-                update.ClearStepUserHandler();
-            }
+                await PRTelegramBot.Helpers.Message.Send(botClient, update, msg: "Что-то пошло не так...");
         }
 
         public static async Task StepTwo(ITelegramBotClient botClient, Update update)
         {
             var handler = update.GetStepHandler<StepTelegram>();
-            handler!.GetCache<UserCache>().Password = update.Message.Text;
-            string userPassword = handler!.GetCache<UserCache>().Password;
-            string userLogin = handler!.GetCache<UserCache>().Login;
+            Message? message = update.Message;
 
-            var DbUser = DbContext.Employees.FirstOrDefault(c => c.Password == userPassword && c.Login == userLogin);
-            if (DbUser != null)
+            if (message != null && message.Type == MessageType.Text && !string.IsNullOrEmpty(message.Text))
             {
-                handler!.GetCache<UserCache>().SetUser(DbUser);
-
-                await PRTelegramBot.Helpers.Message.Send(botClient, update,
-                    msg: $"Здравствуйте, вы {handler!.GetCache<UserCache>().GetRoleString()} - {handler!.GetCache<UserCache>().Name}");
-                update.ClearStepUserHandler();
-
-                if(DbUser.TelegramId != "@"+UserCache.tempTelegramId)
+                string userLogin = message.Text;
+                var theUser = DbContext.Employees
+                    .FirstOrDefault(c => c.Login == userLogin && c.PhoneNumber == handler!.GetCache<UserCache>().PhoneNumber);
+                
+                if(theUser != null)
+                {
+                    handler!.RegisterNextStep(StepThree);
+                    handler!.GetCache<UserCache>().Login = theUser.Login;
+                    await PRTelegramBot.Helpers.Message.Send(botClient, update,
+                        msg: "Теперь пароль");
+                }
+                else
                 {
                     await PRTelegramBot.Helpers.Message.Send(botClient, update,
-                    msg: $"Похоже сейчас вы используете другой Telegram аккаунт: @{UserCache.tempTelegramId}" +
-                         $"\nЕсли ваш аккаунт {DbUser.TelegramId} больше не актуален, свяжитесь с менеджером для обновления ваших контактов.");
+                        msg: "Неверный логин(" +
+                             "\nПопробуй заново, или начни сначала, прописав /start");
                 }
             }
             else
-            {
-                var menuContent = new List<KeyboardButton>() { new("/login") };
-                var menu = MenuGenerator.ReplyKeyboard(1, menuContent);
+                await PRTelegramBot.Helpers.Message.Send(botClient, update, msg: "Что-то пошло не так...");
+            
+        }
 
-                await PRTelegramBot.Helpers.Message.Send(botClient, update,
-                    msg: "Неправильный пароль(" +
-                         "\nПопробуйте ещё раз или авторизуйтесь заново",
-                    option: new OptionMessage() { MenuReplyKeyboardMarkup = menu });
+        public static async Task StepThree(ITelegramBotClient botClient, Update update)
+        {
+            var handler = update.GetStepHandler<StepTelegram>();
+            Message? message = update.Message;
+
+            if (message != null && message.Type == MessageType.Text && !string.IsNullOrEmpty(message.Text))
+            {
+                string userPassword = message.Text;
+                var theUser = DbContext.Employees
+                    .FirstOrDefault(c => c.Password == userPassword && c.Login == handler!.GetCache<UserCache>().Login && c.PhoneNumber == handler!.GetCache<UserCache>().PhoneNumber);
+
+                if (theUser != null)
+                {
+                    theUser.TelegramConfirmed = true;
+                    DbContext.SaveChanges();
+                    handler!.GetCache<UserCache>().SetUser(theUser);
+                    update.ClearStepUserHandler();
+
+                    await PRTelegramBot.Helpers.Message.Send(botClient, update,
+                    msg: $"Здравствуй, уважаемый {handler!.GetCache<UserCache>().GetRoleString()} - {theUser.Name}" +
+                             $"\nЧем могу быть полезен?");
+                }
+                else
+                {
+                    await PRTelegramBot.Helpers.Message.Send(botClient, update,
+                        msg: "Неверный пароль(" +
+                             "\nПопробуй заново, или начни сначала, прописав /start");
+                }
             }
+            else
+                await PRTelegramBot.Helpers.Message.Send(botClient, update, msg: "Что-то пошло не так...");
         }
     }
 }
