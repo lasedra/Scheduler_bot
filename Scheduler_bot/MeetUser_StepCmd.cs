@@ -11,7 +11,7 @@ using Telegram.Bot.Types.ReplyMarkups;
 
 namespace Scheduler_bot
 {
-    public class MeetUser_StepCmd
+    public class MeetUser_StepCmd // Авторизация. Кэш пользователя хранится до перезагрузки бота
     {
         static IConfiguration AppConfig = new ConfigurationBuilder().AddJsonFile("appconfig.json", optional: false, reloadOnChange: true).Build();
         static SchedulerDbContext DbContext = new(AppConfig.GetConnectionString("localhost"));
@@ -19,13 +19,14 @@ namespace Scheduler_bot
         [SlashHandler("/start")]
         public static async Task StepZero(ITelegramBotClient botClient, Update update)
         {
-            update.ClearStepUserHandler();
             var handler = update.GetStepHandler<StepTelegram>();
+
             if (handler != null && handler!.GetCache<UserCache>().TelegramConfirmed)
             {
                 await PRTelegramBot.Helpers.Message.Send(botClient, update,
                         msg: $"Мы уже знакомы, {handler!.GetCache<UserCache>().Name})" +
                              "\nМожешь продолжать работу");
+                await MainMenu_RplyKybrd.ShowMainMenu(botClient, update);
             }
             else
             {
@@ -119,11 +120,10 @@ namespace Scheduler_bot
                     theUser.TelegramConfirmed = true;
                     DbContext.SaveChanges();
                     handler!.GetCache<UserCache>().SetUser(theUser);
-                    update.ClearStepUserHandler();
 
                     await PRTelegramBot.Helpers.Message.Send(botClient, update,
-                    msg: $"Здравствуй, уважаемый {handler!.GetCache<UserCache>().GetRoleString()} - {theUser.Name}" +
-                             $"\nЧем могу быть полезен?");
+                        msg: $"Здравствуй, уважаемый {handler!.GetCache<UserCache>().GetRoleString()} - {theUser.Name}");
+                    await MainMenu_RplyKybrd.ShowMainMenu(botClient, update);
                 }
                 else
                 {
