@@ -1,12 +1,10 @@
-﻿using Microsoft.Extensions.Configuration;
-using Scheduler_bot.Models;
+﻿using Microsoft.EntityFrameworkCore;
 using PRTelegramBot.Core;
+using Scheduler_bot;
 
-IConfiguration AppConfig = new ConfigurationBuilder().AddJsonFile("appconfig.json", optional: false, reloadOnChange: true).Build();
-SchedulerDbContext DbContext = new(AppConfig.GetConnectionString("localhost"));
 PRBot botClient = new(options =>
 {
-    options.Token = AppConfig.GetSection("Bot token").Value;
+    options.Token = Dispatcher.AppConfig.GetSection("Bot token").Value ?? "NO_BOT_TOKEN";
     options.ClearUpdatesOnStart = true;
 });
 
@@ -16,8 +14,12 @@ botClient.OnLogError += ConsolePrint_OnLogError;
 await botClient.Start();
 
 while (true)
-    if (Console.ReadLine().ToLower() == "exit")
+    if (Console.ReadLine()!.ToLower() == "exit")
+    {
+        await Dispatcher.DbContext.Employees.ForEachAsync(c => c.TelegramConfirmed = false);
+        Dispatcher.DbContext.SaveChanges();
         Environment.Exit(0);
+    }
 
 static void ConsolePrint_OnLogCommon(string msg, Enum typeEvent, ConsoleColor color)
 {
