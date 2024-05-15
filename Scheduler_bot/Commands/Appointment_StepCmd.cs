@@ -8,7 +8,6 @@ using PRTelegramBot.Utils;
 using PRTelegramBot.Extensions;
 using Helpers = PRTelegramBot.Helpers;
 using System.Globalization;
-using System.Text.RegularExpressions;
 
 namespace Scheduler_bot.Commands
 {
@@ -16,17 +15,19 @@ namespace Scheduler_bot.Commands
     {
         private static class Appointment
         {
-            public static string studentGroup {  get; set; } = string.Empty;
-            public static string subject { get; set; } = string.Empty;
-            public static string cabinet { get; set; } = string.Empty;
+            public static string studentGroupCode {  get; set; } = string.Empty;
+            public static Subject subject { get; set; } = null!;
+            public static Cabinet cabinet { get; set; } = null!;
             public static DayOfWeek dayOfTheWeek { get; set; }
+            public static int classNumber { get; set; } = 0;
 
             public static bool ClearData()
             {
-                studentGroup = string.Empty;
-                subject = string.Empty;
-                cabinet = string.Empty;
+                studentGroupCode = string.Empty;
+                subject =  null!;
+                cabinet = null!;
                 dayOfTheWeek = DayOfWeek.Sunday;
+                classNumber = 0;
                 return true;
             }
         }
@@ -45,12 +46,12 @@ namespace Scheduler_bot.Commands
             await Helpers.Message.Send(botClient, update,
                 msg: "Выберите группу",
                 option: new OptionMessage() { MenuReplyKeyboardMarkup = menu });
-        }
+        } //Группа
 
         public static async Task StepOne(ITelegramBotClient botClient, Update update)
         {
             var handler = update.GetStepHandler<StepTelegram>();
-            Appointment.studentGroup = update.Message.Text;
+            Appointment.studentGroupCode = update.Message.Text;
 
             List<Subject> subjects = Dispatcher.DbContext.Tutions.Where(tution => tution.EmployeeId == Dispatcher.CurrentUser.EmployeeId && tution.EndDate == null)
                                     .Select(tution => tution.Subject)
@@ -78,33 +79,34 @@ namespace Scheduler_bot.Commands
                     msg: "Кажется, вы не можете вести ни один предмет(" +
                          "\nЗа доп. информацией обратитесь к менеджеру");
             }
-        }
+        } //Предмет
 
         public static async Task StepTwo(ITelegramBotClient botClient, Update update)
         {
             var handler = update.GetStepHandler<StepTelegram>();
-            Appointment.subject = update.Message.Text;
+            Appointment.subject = Dispatcher.DbContext.Subjects.First(c => c.Name == update.Message.Text);
 
             List<Cabinet> cabinets = Dispatcher.DbContext.Cabinets.ToList();
             var menuContent = new List<KeyboardButton>();
             foreach (var cabinet in cabinets)
-                menuContent.Add(new KeyboardButton($"{cabinet.Number} - {cabinet.Name}"));
+                menuContent.Add(new KeyboardButton($"{cabinet.Number}"));
+            //menuContent.Add(new KeyboardButton($"{cabinet.Number} - {cabinet.Name}"));
             var menu = MenuGenerator.ReplyKeyboard(1, menuContent);
 
             handler!.RegisterNextStep(StepThree);
             await Helpers.Message.Send(botClient, update,
                 msg: "Выберите кабинет",
                 option: new OptionMessage() { MenuReplyKeyboardMarkup = menu });
-        }
+        } //Кабинет
 
         public static async Task StepThree(ITelegramBotClient botClient, Update update)
         {
             var handler = update.GetStepHandler<StepTelegram>();
-            Appointment.cabinet = update.Message.Text;
+            Appointment.cabinet = Dispatcher.DbContext.Cabinets.First(c => c.Number == update.Message.Text);
 
             Dispatcher.TimePeriod currentWeek = new(DateOnly.FromDateTime(DateTime.Today));
             var openDays = Dispatcher.DbContext.DailyScheduleBodies
-                .Where(c => c.StudentGroupCode == Appointment.studentGroup && c.Employee == null && c.Subject == null && c.CabinetNumber == null && 
+                .Where(c => c.StudentGroupCode == Appointment.studentGroupCode && c.Employee == null && c.Subject == null && c.CabinetNumber == null && 
                             c.OfDate >= currentWeek.WeekStart && c.OfDate <= currentWeek.WeekEnd)
                 .GroupBy(c => c.OfDate.DayOfWeek).Select(group => group.Key)
                 .ToList();
@@ -113,32 +115,80 @@ namespace Scheduler_bot.Commands
             var menuContent = new List<KeyboardButton>();
             foreach (var day in openDays)
                 menuContent.Add(new KeyboardButton(culture.DateTimeFormat.GetAbbreviatedDayName(day)));
-            //menuContent.Add(new KeyboardButton(culture.DateTimeFormat.GetDayName(day)));
             var menu = MenuGenerator.ReplyKeyboard(openDays.Count, menuContent);
 
             handler!.RegisterNextStep(StepFour);
             await Helpers.Message.Send(botClient, update,
                 msg: "Выберите день недели",
                 option: new OptionMessage() { MenuReplyKeyboardMarkup = menu });
-        }
+        } //День недели
 
         public static async Task StepFour(ITelegramBotClient botClient, Update update)
         {
             var handler = update.GetStepHandler<StepTelegram>();
-            Appointment.dayOfTheWeek = (DayOfWeek)Enum.Parse(typeof(DayOfWeek), update.Message.Text.ToString(), true);
+            switch (update.Message.Text)
+            {
+                case "пн":
+                    Appointment.dayOfTheWeek = DayOfWeek.Monday;
+                    break;
+                case "вт":
+                    Appointment.dayOfTheWeek = DayOfWeek.Tuesday;
+                    break;
+                case "ср":
+                    Appointment.dayOfTheWeek = DayOfWeek.Wednesday;
+                    break;
+                case "чт":
+                    Appointment.dayOfTheWeek = DayOfWeek.Thursday;
+                    break;
+                case "пт":
+                    Appointment.dayOfTheWeek = DayOfWeek.Saturday;
+                    break;
+            }
 
-            var openClasses = Dispatcher.DbContext.DailyScheduleBodies
-                .Where(c => c.StudentGroupCode == Appointment.studentGroup && c.OfDate.DayOfWeek == Appointment.dayOfTheWeek);
+            Dispatcher.TimePeriod currentWeek = new(DateOnly.FromDateTime(DateTime.Today));
+            var openLessons = Dispatcher.DbContext.DailyScheduleBodies
+                .Where(c => c.StudentGroupCode == Appointment.studentGroupCode && c.Employee == null && c.Subject == null && c.CabinetNumber == null &&
+                            c.OfDate >= currentWeek.WeekStart && c.OfDate <= currentWeek.WeekEnd &&
+                            c.OfDate.DayOfWeek == Appointment.dayOfTheWeek).ToList();
 
             var menuContent = new List<KeyboardButton>();
-            foreach (var lesson in openClasses)
+            foreach (var lesson in openLessons)
                 menuContent.Add(new KeyboardButton(lesson.ClassNumber.ToString()));
-            var menu = MenuGenerator.ReplyKeyboard(openClasses.Count(), menuContent);
+            var menu = MenuGenerator.ReplyKeyboard(openLessons.Count(), menuContent);
 
-            //handler!.RegisterNextStep(StepFour);
+            handler!.RegisterNextStep(StepFive);
             await Helpers.Message.Send(botClient, update,
                 msg: "Выберите пары",
                 option: new OptionMessage() { MenuReplyKeyboardMarkup = menu });
-        }
+        } //Пары
+
+        public static async Task StepFive(ITelegramBotClient botClient, Update update)
+        {
+            var handler = update.GetStepHandler<StepTelegram>();
+            Appointment.classNumber = Convert.ToInt32(update.Message.Text);
+
+            var culture = new CultureInfo("ru-RU");
+            Dispatcher.TimePeriod currentWeek = new(DateOnly.FromDateTime(DateTime.Today));
+            DailyScheduleBody newAppointment = Dispatcher.DbContext.DailyScheduleBodies
+                .First(c => c.StudentGroupCode == Appointment.studentGroupCode && 
+                            c.Employee == null && c.Subject == null && c.CabinetNumber == null &&
+                            c.OfDate >= currentWeek.WeekStart && c.OfDate <= currentWeek.WeekEnd &&
+                            c.OfDate.DayOfWeek == Appointment.dayOfTheWeek &&
+                            c.ClassNumber == Appointment.classNumber);
+
+            newAppointment.Employee = Dispatcher.DbContext.Employees.First(c => c.EmployeeId == Dispatcher.CurrentUser.EmployeeId);
+            newAppointment.Subject = Dispatcher.DbContext.Subjects.First(c => c.SubjectId == Appointment.subject.SubjectId);
+            newAppointment.CabinetNumber = Appointment.cabinet.Number;
+            Dispatcher.DbContext.SaveChanges();
+
+            update.ClearStepUserHandler();
+            await Helpers.Message.Send(botClient, update,
+                msg: "Готово! Вы назначили новое занятие:" +
+                $"\n- Дата: {newAppointment.OfDate}, {culture.DateTimeFormat.GetAbbreviatedDayName(newAppointment.OfDate.DayOfWeek)}" +
+                $"\n- Пара: {newAppointment.ClassNumber}" +
+                $"\n- Предмет: {newAppointment.Subject.Name}" +
+                $"\n- Кабинет: {newAppointment.CabinetNumber}");
+            await Dispatcher.ShowMainMenu(botClient, update);
+        } // Финал
     }
 }
