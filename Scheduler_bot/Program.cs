@@ -1,5 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
-using PRTelegramBot.Core;
+﻿using PRTelegramBot.Core;
 using Scheduler_bot;
 
 PRBot botClient = new(options =>
@@ -10,13 +9,12 @@ PRBot botClient = new(options =>
 
 botClient.OnLogCommon += ConsolePrint_OnLogCommon;
 botClient.OnLogError += ConsolePrint_OnLogError;
-
 await botClient.Start();
 
 while (true)
     if (Console.ReadLine()!.ToLower() == "exit")
     {
-        await Dispatcher.DbContext.Employees.ForEachAsync(c => c.TelegramConfirmed = false);
+        //await Dispatcher.DbContext.Employees.ForEachAsync(c => c.TgBotChatId = null);
         Dispatcher.DbContext.SaveChanges();
         Environment.Exit(0);
     }

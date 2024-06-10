@@ -12,4 +12,6 @@ public partial class EventLog
     public string Level { get; set; } = null!;
 
     public string Message { get; set; } = null!;
+
+    public bool IsUpdatedByApp { get; set; }
 }

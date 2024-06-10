@@ -1,14 +1,32 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 
 namespace Scheduler_bot.Models;
 
 public partial class SchedulerDbContext : DbContext
 {
-    readonly string connectionString = null!;
-    public SchedulerDbContext(string connectiontring)
+    private static SchedulerDbContext DbContext { get; set; } = null!;
+    public static Employee CurrentUser { get; set; } = null!;
+    public IConfiguration appConfig { get; set; } = null!;
+    public bool IsAppUpdated { get; set; } = false;
+
+    public override int SaveChanges()
     {
-        this.connectionString = connectiontring;
+        EventLog log = new EventLog
+        {
+            DateTime = DateTime.Now,
+            Level = "INFO",
+            Message = "Changes made by the application.",
+            IsUpdatedByApp = IsAppUpdated
+        };
+        this.EventLogs.Add(log);
+
+        return base.SaveChanges();
     }
+
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+        => optionsBuilder.UseNpgsql(appConfig.GetConnectionString("localhost"));
+
 
     public virtual DbSet<Cabinet> Cabinets { get; set; }
 
@@ -31,9 +49,6 @@ public partial class SchedulerDbContext : DbContext
     public virtual DbSet<Subject> Subjects { get; set; }
 
     public virtual DbSet<Tution> Tutions { get; set; }
-
-    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-        => optionsBuilder.UseNpgsql(this.connectionString);
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -101,7 +116,6 @@ public partial class SchedulerDbContext : DbContext
 
             entity.HasOne(d => d.DailyScheduleHeader).WithMany(p => p.DailyScheduleBodies)
                 .HasForeignKey(d => new { d.StudentGroupCode, d.OfDate })
-                .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("DailySchedule_body_StudentGroupCode_OfDate_fkey");
         });
 
@@ -115,7 +129,6 @@ public partial class SchedulerDbContext : DbContext
 
             entity.HasOne(d => d.StudentGroupCodeNavigation).WithMany(p => p.DailyScheduleHeaders)
                 .HasForeignKey(d => d.StudentGroupCode)
-                .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("DailySchedule_header_StudentGroupCode_fkey");
         });
 
@@ -127,7 +140,9 @@ public partial class SchedulerDbContext : DbContext
 
             entity.HasIndex(e => e.Login, "Employee_Login_key").IsUnique();
 
-            entity.HasIndex(e => e.PhoneNumber, "employee_phone_number_key").IsUnique();
+            entity.HasIndex(e => e.Phone, "Employee_Phone_key").IsUnique();
+
+            entity.HasIndex(e => e.TgBotChatId, "Employee_TgBotChatId_key").IsUnique();
 
             entity.Property(e => e.EmployeeId)
                 .HasDefaultValueSql("gen_random_uuid()")
@@ -138,10 +153,6 @@ public partial class SchedulerDbContext : DbContext
             entity.Property(e => e.Login).HasColumnType("character varying");
             entity.Property(e => e.Name).HasColumnType("character varying");
             entity.Property(e => e.Password).HasColumnType("character varying");
-            entity.Property(e => e.PhoneNumber)
-                .HasColumnType("character varying")
-                .HasColumnName("Phone_Number");
-            entity.Property(e => e.TelegramConfirmed).HasColumnName("TelegramConfirmed?");
         });
 
         modelBuilder.Entity<EventLog>(entity =>
@@ -177,12 +188,10 @@ public partial class SchedulerDbContext : DbContext
 
             entity.HasOne(d => d.StudentGroupCodeNavigation).WithMany(p => p.Studyings)
                 .HasForeignKey(d => d.StudentGroupCode)
-                .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("Studying_StudentGroupCode_fkey");
 
             entity.HasOne(d => d.Subject).WithMany(p => p.Studyings)
                 .HasForeignKey(d => d.SubjectId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("Studying_Subject_ID_fkey");
         });
 
@@ -211,12 +220,10 @@ public partial class SchedulerDbContext : DbContext
 
             entity.HasOne(d => d.Employee).WithMany(p => p.Tutions)
                 .HasForeignKey(d => d.EmployeeId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("Tution_Employee_ID_fkey");
 
             entity.HasOne(d => d.Subject).WithMany(p => p.Tutions)
                 .HasForeignKey(d => d.SubjectId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("Tution_Subject_ID_fkey");
         });
 
