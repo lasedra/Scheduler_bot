@@ -16,12 +16,14 @@ namespace Scheduler_bot.Commands
 {
     public class Appointment_StepCmd
     {
+        // TODO: исключить прерывания внешними комаандами
+
         [ReplyMenuHandler("Назначить занятие⤵")]
         public static async Task StepZero(ITelegramBotClient botClient, Update update) // Запросить группу
         {
             Employee currentUser = Dispatcher.DbContext.Employees.First(c => c.TgBotChatId == update.GetChatId());
 
-            List<Subject> tutionSubjects = Dispatcher.DbContext.Tutions
+            List<Subject> tutorSubjects = Dispatcher.DbContext.Tutions
                                                 .Where(tution => tution.EmployeeId == currentUser.EmployeeId && tution.EndDate == null)
                                                 .Select(tution => tution.Subject)
                                                 .Distinct()
@@ -30,14 +32,10 @@ namespace Scheduler_bot.Commands
                                                 .Select(studying => studying.Subject)
                                                 .Distinct()
                                                 .ToList();
-            List<Subject> commonSubjects = tutionSubjects
+            List<Subject> commonSubjects = tutorSubjects
                                                 .Intersect(studyingSubjects)
                                                 .ToList();
-            //List<StudentGroup> allowedGroups = Dispatcher.DbContext.StudentGroups
-            //                                    .Include(c => c.Studyings)
-            //                                    .Where(group => group.Studyings.Any(studying => commonSubjects.Any(subject => studying.SubjectId == subject.SubjectId)))
-            //                                    .Distinct()
-            //                                    .ToList();
+
             List<StudentGroup> allowedGroups = new();
             foreach (StudentGroup group in Dispatcher.DbContext.StudentGroups.Include(c => c.Studyings))
                 foreach (Subject subject in commonSubjects)
@@ -55,9 +53,7 @@ namespace Scheduler_bot.Commands
 
                 update.RegisterStepHandler(new StepTelegram(StepOne, new AppointmentStepCache()));
                 var handler = update.GetStepHandler<StepTelegram>();
-                handler!.GetCache<AppointmentStepCache>().TutionSubjects = tutionSubjects;
-                handler!.GetCache<AppointmentStepCache>().StudyingSubjects = studyingSubjects;
-                handler!.GetCache<AppointmentStepCache>().CommonSubjects = commonSubjects;
+                handler!.GetCache<AppointmentStepCache>().TutorSubjects = tutorSubjects;
                 handler!.GetCache<AppointmentStepCache>().AllowedGroups = allowedGroups;
 
                 var menuContent = new List<KeyboardButton>();
@@ -94,12 +90,24 @@ namespace Scheduler_bot.Commands
                     handler!.RegisterNextStep(StepTwo);
                     handler!.GetCache<AppointmentStepCache>().StudentGroupCode = currentStudentGroup.StudentGroupCode;
 
-                    // TODO: выборка не включает выбранную группу, а берёт общие. Исправить
-                    List<Subject> _commonSubjects = handler!.GetCache<AppointmentStepCache>().CommonSubjects;
+                    List<Subject> tutorSubjects = Dispatcher.DbContext.Tutions
+                                                        .Where(tution => tution.EmployeeId == currentUser.EmployeeId && tution.EndDate == null)
+                                                        .Select(tution => tution.Subject)
+                                                        .Distinct()
+                                                        .ToList();
+                    List<Subject> studyingSubjects = Dispatcher.DbContext.Studyings
+                                                        .Where(c => c.StudentGroupCode == _studentGroupCode)
+                                                        .Select(studying => studying.Subject)
+                                                        .Distinct()
+                                                        .ToList();
+                    List<Subject> _allowedSubjects = tutorSubjects
+                                                        .Intersect(studyingSubjects)
+                                                        .ToList();
+
                     var menuContent = new List<KeyboardButton>();
-                    foreach (var subject in _commonSubjects)
+                    foreach (var subject in _allowedSubjects)
                         menuContent.Add(new KeyboardButton(subject.Name));
-                    var menu = MenuGenerator.ReplyKeyboard(_commonSubjects.Count, menuContent);
+                    var menu = MenuGenerator.ReplyKeyboard(_allowedSubjects.Count, menuContent);
 
                     await Helpers.Message.Send(botClient, update,
                         msg: "Выберите предмет",
@@ -169,7 +177,7 @@ namespace Scheduler_bot.Commands
                 }
                 else{
 
-                    //handler!.RegisterNextStep(StepFour);
+                    handler!.RegisterNextStep(StepFour);
                     handler!.GetCache<AppointmentStepCache>().Cabinet = currentCabinet;
 
                     Dispatcher.TimePeriod currentWeek = new(DateOnly.FromDateTime(DateTime.Today));
@@ -199,101 +207,136 @@ namespace Scheduler_bot.Commands
                 await Helpers.Message.Send(botClient, update, msg: "Что-то пошло не так...");
         }
 
-        //public static async Task StepFour(ITelegramBotClient botClient, Update update)
-        //{
-        //    var handler = update.GetStepHandler<StepTelegram>();
-        //    switch (update.Message.Text)
-        //    {
-        //        case "пн":
-        //            Appointment.dayOfTheWeek = DayOfWeek.Monday;
-        //            break;
-        //        case "вт":
-        //            Appointment.dayOfTheWeek = DayOfWeek.Tuesday;
-        //            break;
-        //        case "ср":
-        //            Appointment.dayOfTheWeek = DayOfWeek.Wednesday;
-        //            break;
-        //        case "чт":
-        //            Appointment.dayOfTheWeek = DayOfWeek.Thursday;
-        //            break;
-        //        case "пт":
-        //            Appointment.dayOfTheWeek = DayOfWeek.Saturday;
-        //            break;
-        //    }
+        public static async Task StepFour(ITelegramBotClient botClient, Update update) // Кэшировать день недели. Запросить пару по счёту
+        {
+            Employee currentUser = Dispatcher.DbContext.Employees.First(c => c.TgBotChatId == update.GetChatId());
+            var handler = update.GetStepHandler<StepTelegram>();
+            Message? message = update.Message;
 
-        //    Dispatcher.TimePeriod currentWeek = new(DateOnly.FromDateTime(DateTime.Today));
-        //    var openLessons = Dispatcher.DbContext.DailyScheduleBodies
-        //        .Where(c => c.StudentGroupCode == Appointment.studentGroupCode && c.Employee == null && c.Subject == null && c.CabinetNumber == null &&
-        //                    c.OfDate >= currentWeek.WeekStart && c.OfDate <= currentWeek.WeekEnd &&
-        //                    c.OfDate.DayOfWeek == Appointment.dayOfTheWeek).ToList();
+            if (message != null && message.Type == MessageType.Text && !string.IsNullOrEmpty(message.Text))
+            {
+                switch (message.Text)
+                {
+                    case "пн":
+                        handler!.GetCache<AppointmentStepCache>().DayOfTheWeek = DayOfWeek.Monday;
+                        goto allowNextStep;
+                    case "вт":
+                        handler!.GetCache<AppointmentStepCache>().DayOfTheWeek = DayOfWeek.Tuesday;
+                        goto allowNextStep;
+                    case "ср":
+                        handler!.GetCache<AppointmentStepCache>().DayOfTheWeek = DayOfWeek.Wednesday;
+                        goto allowNextStep;
+                    case "чт":
+                        handler!.GetCache<AppointmentStepCache>().DayOfTheWeek = DayOfWeek.Thursday;
+                        goto allowNextStep;
+                    case "пт":
+                        handler!.GetCache<AppointmentStepCache>().DayOfTheWeek = DayOfWeek.Saturday;
+                        goto allowNextStep;
 
-        //    var menuContent = new List<KeyboardButton>();
-        //    foreach (var lesson in openLessons)
-        //        menuContent.Add(new KeyboardButton(lesson.ClassNumber.ToString()));
-        //    var menu = MenuGenerator.ReplyKeyboard(openLessons.Count(), menuContent);
+                    allowNextStep:
+                        handler!.RegisterNextStep(StepFive);
 
-        //    handler!.RegisterNextStep(StepFive);
-        //    await Helpers.Message.Send(botClient, update,
-        //        msg: "Выберите пары",
-        //        option: new OptionMessage() { MenuReplyKeyboardMarkup = menu });
-        //} //Пары
+                        Dispatcher.TimePeriod currentWeek = new(DateOnly.FromDateTime(DateTime.Today));
+                        var openLessons = Dispatcher.DbContext.DailyScheduleBodies.Where(c => c.StudentGroupCode == handler!.GetCache<AppointmentStepCache>().StudentGroupCode &&
+                                                                                              c.Employee == null &&
+                                                                                              c.Subject == null &&
+                                                                                              c.CabinetNumber == null &&
+                                                                                              c.OfDate >= currentWeek.WeekStart &&
+                                                                                              c.OfDate <= currentWeek.WeekEnd &&
+                                                                                              c.OfDate.DayOfWeek == handler!.GetCache<AppointmentStepCache>().DayOfTheWeek)
+                                                                                  .OrderByDescending(c => c.ClassNumber)
+                                                                                  .ToList();
+                        var menuContent = new List<KeyboardButton>();
+                        foreach (var lesson in openLessons)
+                            menuContent.Add(new KeyboardButton(lesson.ClassNumber.ToString()));
+                        var menu = MenuGenerator.ReplyKeyboard(openLessons.Count, menuContent);
 
-        //public static async Task StepFive(ITelegramBotClient botClient, Update update)
-        //{
-        //    Employee currentUser = Dispatcher.TelegramUsers.First(c => c.Value == update.GetChatId()).Key;
+                        await Helpers.Message.Send(botClient, update,
+                            msg: "Выберите пары",
+                            option: new OptionMessage() { MenuReplyKeyboardMarkup = menu });
+                        break;
 
-        //    var handler = update.GetStepHandler<StepTelegram>();
-        //    Appointment.classNumber = Convert.ToInt32(update.Message.Text);
+                    default:
+                        await Helpers.Message.Send(botClient, update,
+                        msg: "Такого дня недели нет(" +
+                             "\nПопробуйте ещё раз");
+                        break;
+                }
+            }
+            else
+                await Helpers.Message.Send(botClient, update, msg: "Что-то пошло не так...");
+        }
 
-        //    var culture = new CultureInfo("ru-RU");
-        //    Dispatcher.TimePeriod currentWeek = new(DateOnly.FromDateTime(DateTime.Today));
-        //    DailyScheduleBody newAppointment = Dispatcher.DbContext.DailyScheduleBodies
-        //        .First(c => c.StudentGroupCode == Appointment.studentGroupCode &&
-        //                    c.Employee == null && c.Subject == null && c.CabinetNumber == null &&
-        //                    c.OfDate >= currentWeek.WeekStart && c.OfDate <= currentWeek.WeekEnd &&
-        //                    c.OfDate.DayOfWeek == Appointment.dayOfTheWeek &&
-        //                    c.ClassNumber == Appointment.classNumber);
+        public static async Task StepFive(ITelegramBotClient botClient, Update update) // Кэшировать пару. Назначить занятие
+        {
+            Employee currentUser = Dispatcher.DbContext.Employees.First(c => c.TgBotChatId == update.GetChatId());
+            var handler = update.GetStepHandler<StepTelegram>();
+            Message? message = update.Message;
 
-        //    newAppointment.Employee = Dispatcher.DbContext.Employees.First(c => c.EmployeeId == currentUser.EmployeeId);
-        //    newAppointment.Subject = Dispatcher.DbContext.Subjects.First(c => c.SubjectId == Appointment.subject.SubjectId);
-        //    newAppointment.CabinetNumber = Appointment.cabinet.Number;
-        //    Dispatcher.DbContext.SaveChanges();
+            if (message != null && message.Type == MessageType.Text && !string.IsNullOrEmpty(message.Text))
+            {
+                int _lessonNumber = Convert.ToInt32(message.Text);
+                if (_lessonNumber < 1 || _lessonNumber > 4){
 
-        //    update.ClearStepUserHandler();
-        //    await Helpers.Message.Send(botClient, update,
-        //        msg: "Готово! Вы назначили новое занятие:" +
-        //        $"\n- Дата: {newAppointment.OfDate}, {culture.DateTimeFormat.GetAbbreviatedDayName(newAppointment.OfDate.DayOfWeek)}" +
-        //        $"\n- Пара: {newAppointment.ClassNumber}" +
-        //        $"\n- Предмет: {newAppointment.Subject.Name}" +
-        //        $"\n- Кабинет: {newAppointment.CabinetNumber}");
-        //    await Dispatcher.ShowMainMenu(botClient, update);
-        //} // Финал
+                    await Helpers.Message.Send(botClient, update,
+                        msg: "Такой пары нет(" +
+                             "\nПопробуйте ещё раз");
+
+                }else{
+                    handler!.GetCache<AppointmentStepCache>().LessonNumber = _lessonNumber;
+                    var culture = new CultureInfo("ru-RU");
+                    Dispatcher.TimePeriod currentWeek = new(DateOnly.FromDateTime(DateTime.Today));
+                    DailyScheduleBody newAppointment = Dispatcher.DbContext.DailyScheduleBodies.First(c => c.StudentGroupCode == handler!.GetCache<AppointmentStepCache>().StudentGroupCode &&
+                                                                                                           c.Employee == null && 
+                                                                                                           c.Subject == null && 
+                                                                                                           c.CabinetNumber == null &&
+                                                                                                           c.OfDate >= currentWeek.WeekStart && 
+                                                                                                           c.OfDate <= currentWeek.WeekEnd &&
+                                                                                                           c.OfDate.DayOfWeek == handler!.GetCache<AppointmentStepCache>().DayOfTheWeek &&
+                                                                                                           c.ClassNumber == handler!.GetCache<AppointmentStepCache>().LessonNumber);
+                    newAppointment.Employee = Dispatcher.DbContext.Employees.First(c => c.EmployeeId == currentUser.EmployeeId);
+                    newAppointment.Subject = Dispatcher.DbContext.Subjects.First(c => c.SubjectId == handler!.GetCache<AppointmentStepCache>().Subject.SubjectId);
+                    newAppointment.CabinetNumber = handler!.GetCache<AppointmentStepCache>().Cabinet.Number;
+                    Dispatcher.DbContext.SaveChanges();
+
+                    await Helpers.Message.Send(botClient, update,
+                        msg: $"Готово! Вы назначили новое занятие для группы {handler!.GetCache<AppointmentStepCache>().StudentGroupCode}:" +
+                        $"\n- Дата: {newAppointment.OfDate}, {culture.DateTimeFormat.GetAbbreviatedDayName(newAppointment.OfDate.DayOfWeek)}" +
+                        $"\n- Пара: {newAppointment.ClassNumber}" +
+                        $"\n- Предмет: {newAppointment.Subject.Name}" +
+                        $"\n- Кабинет: {newAppointment.CabinetNumber}");
+
+                    await Dispatcher.ShowMainMenu(botClient, update);
+                    update.ClearStepUserHandler();
+                }
+            }
+            else
+                await Helpers.Message.Send(botClient, update, msg: "Что-то пошло не так...");
+        }
 
 
 
         private class AppointmentStepCache : ITelegramCache
         {
-            public List<Subject> TutionSubjects { get; set; }
-            public List<Subject> StudyingSubjects { get; set; }
-            public List<Subject> CommonSubjects { get; set; }
+            public List<Subject> TutorSubjects { get; set; }
+            public List<Subject> GroupSubjects { get; set; }
             public List<StudentGroup> AllowedGroups { get; set; }
             public string StudentGroupCode { get; set; }
             public Subject Subject { get; set; }
             public Cabinet Cabinet { get; set; }
             public DayOfWeek DayOfTheWeek { get; set; }
-            public int ClassNumber { get; set; }
+            public int LessonNumber { get; set; }
 
             public bool ClearData()
             {
-                TutionSubjects = new List<Subject>();
-                StudyingSubjects = new List<Subject>();
-                CommonSubjects = new List<Subject>();
+                TutorSubjects = new List<Subject>();
+                GroupSubjects = new List<Subject>();
                 AllowedGroups = new List<StudentGroup>();
                 StudentGroupCode = string.Empty;
                 Subject = null!;
                 Cabinet = null!;
                 DayOfTheWeek = DayOfWeek.Sunday;
-                ClassNumber = 0;
+                LessonNumber = 0;
                 return true;
             }
         }

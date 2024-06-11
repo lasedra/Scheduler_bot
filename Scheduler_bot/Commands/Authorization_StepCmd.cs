@@ -135,13 +135,11 @@ namespace Scheduler_bot.Commands
                     loggingUser.TgBotChatId = update.GetChatId();
                     Dispatcher.DbContext.SaveChanges();
 
-                    update.ClearStepUserHandler();
-                    handler!.GetCache<AuthStepCache>().ClearData();
-
                     await Helpers.Message.Send(botClient, update,
                         msg: $"Здравствуйте, {loggingUser.Name}!");
 
                     await Dispatcher.ShowMainMenu(botClient, update);
+                    update.ClearStepUserHandler();
                 }
             }
             else
