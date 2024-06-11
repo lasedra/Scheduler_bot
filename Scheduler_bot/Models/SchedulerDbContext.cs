@@ -9,24 +9,34 @@ public partial class SchedulerDbContext : DbContext
     public static Employee CurrentUser { get; set; } = null!;
     public IConfiguration appConfig { get; set; } = null!;
     public bool IsAppUpdated { get; set; } = false;
+    public enum ChangeLogLevel
+    {
+        Intermediate,
+        Secondary,
+        Primary
+    }
 
     public override int SaveChanges()
     {
-        EventLog log = new EventLog
+        return SaveChanges(ChangeLogLevel.Intermediate, string.Empty);
+    }
+    public int SaveChanges(ChangeLogLevel level, string message)
+    {
+        EventLog newLog = new()
         {
             DateTime = DateTime.Now,
-            Level = "INFO",
-            Message = "Changes made by the application.",
+            Level = level.ToString(),
+            Message = !string.IsNullOrWhiteSpace(message) ? message : "/*empty*/",
             IsUpdatedByApp = IsAppUpdated
         };
-        this.EventLogs.Add(log);
+        this.EventLogs.Add(newLog);
 
         return base.SaveChanges();
     }
 
+
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         => optionsBuilder.UseNpgsql(appConfig.GetConnectionString("localhost"));
-
 
     public virtual DbSet<Cabinet> Cabinets { get; set; }
 

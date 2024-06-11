@@ -133,7 +133,7 @@ namespace Scheduler_bot.Commands
                 }else{
 
                     loggingUser.TgBotChatId = update.GetChatId();
-                    Dispatcher.DbContext.SaveChanges();
+                    Dispatcher.DbContext.SaveChanges(SchedulerDbContext.ChangeLogLevel.Primary, $"Telegram bot confirmed a user - \"{loggingUser.Name}\"");
 
                     await Helpers.Message.Send(botClient, update,
                         msg: $"Здравствуйте, {loggingUser.Name}!");

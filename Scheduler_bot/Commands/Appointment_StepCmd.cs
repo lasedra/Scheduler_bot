@@ -297,7 +297,7 @@ namespace Scheduler_bot.Commands
                     newAppointment.Employee = Dispatcher.DbContext.Employees.First(c => c.EmployeeId == currentUser.EmployeeId);
                     newAppointment.Subject = Dispatcher.DbContext.Subjects.First(c => c.SubjectId == handler!.GetCache<AppointmentStepCache>().Subject.SubjectId);
                     newAppointment.CabinetNumber = handler!.GetCache<AppointmentStepCache>().Cabinet.Number;
-                    Dispatcher.DbContext.SaveChanges();
+                    Dispatcher.DbContext.SaveChanges(SchedulerDbContext.ChangeLogLevel.Primary, $"Appointment made by \"{currentUser.Name}\"");
 
                     await Helpers.Message.Send(botClient, update,
                         msg: $"Готово! Вы назначили новое занятие для группы {handler!.GetCache<AppointmentStepCache>().StudentGroupCode}:" +
