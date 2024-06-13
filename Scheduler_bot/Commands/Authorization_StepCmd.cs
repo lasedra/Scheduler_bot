@@ -14,136 +14,162 @@ namespace Scheduler_bot.Commands
 {
     public class Authorization_StepCmd
     {
-        [SlashHandler("/start", "/login")]
+        [SlashHandler("/start")]
         public static async Task StepZero(ITelegramBotClient botClient, Update update)  // Запросить тел. номер
         {
-            Employee? loggingUser = Dispatcher.DbContext.Employees.FirstOrDefault(c => c.TgBotChatId == update.GetChatId());
-
-            if (loggingUser == null)
+            try
             {
-                update.RegisterStepHandler(new StepTelegram(StepOne, new AuthStepCache()));
+                if (update.HasStepHandler())
+                    update.ClearStepUserHandler();
 
-                var menuContent = new List<KeyboardButton>() { KeyboardButton.WithRequestContact("Поделиться номером") };
-                var menu = MenuGenerator.ReplyKeyboard(1, menuContent);
+                Employee? loggingUser = Dispatcher.DbContext.Employees.FirstOrDefault(c => c.TgBotChatId == update.GetChatId());
+                if (loggingUser == null)
+                {
+                    update.RegisterStepHandler(new StepTelegram(StepOne, new AuthStepCache()));
 
-                await Helpers.Message.Send(botClient, update,
-                    msg: "Привет! Я помогу вам с составлением расписания!" +
-                         "\nДля авторизации мне нужен ваш номер телефона",
-                    option: new OptionMessage() { MenuReplyKeyboardMarkup = menu });
+                    var menuContent = new List<KeyboardButton>() { KeyboardButton.WithRequestContact("Поделиться номером") };
+                    var menu = MenuGenerator.ReplyKeyboard(1, menuContent);
 
+                    await Helpers.Message.Send(botClient, update,
+                        msg: "Привет! Я помогу вам с составлением расписания!" +
+                             "\nДля авторизации мне нужен ваш номер телефона",
+                        option: new() { MenuReplyKeyboardMarkup = menu });
+
+                }
+                else
+                {
+                    await Helpers.Message.Send(botClient, update,
+                                msg: $"{loggingUser.Name}, вы уже авторизованы 👌" +
+                                     "\nМожете продолжать работу");
+                    await Dispatcher.ShowMainMenu(botClient, update);
+                }
             }
-            else
-            {
-                await Helpers.Message.Send(botClient, update,
-                            msg: $"{loggingUser.Name}, вы уже авторизованы." +
-                                 "\nМожете продолжать работу");
-                await Dispatcher.ShowMainMenu(botClient, update);
-            }
+            catch(Exception ex) { await Helpers.Message.Send(botClient, update, msg: ex.Message); }
         }
 
         public static async Task StepOne(ITelegramBotClient botClient, Update update) // Кэшировать тел.номер. Запросить логин
         {
-            var handler = update.GetStepHandler<StepTelegram>();
-            Message? message = update.Message;
-
-            if (message != null && message.Type == MessageType.Contact && message.Contact != null)
+            try
             {
-                // Cтрогая валидация тел. номера к формату long(80000000000)
-                string _phone = message.Contact.PhoneNumber;
-                _phone = _phone.Replace(" ", "");
-                _phone = _phone.Replace("+", "");
-                _phone = _phone.Replace("-", "");
-                if (_phone.StartsWith('7'))
-                    _phone = ReplaceAt(_phone, 0, '8');
+                var handler = update.GetStepHandler<StepTelegram>();
+                Message? message = update.Message;
 
-                long loggingPhone = long.Parse(_phone.Trim());
-                Employee? loggingUser = Dispatcher.DbContext.Employees
-                    .FirstOrDefault(c => c.Phone == loggingPhone);
+                if (message != null && message.Type == MessageType.Contact && message.Contact != null)
+                {
+                    // Cтрогая валидация тел. номера к формату long(80000000000)
+                    string _phone = message.Contact.PhoneNumber;
+                    _phone = _phone.Replace(" ", "");
+                    _phone = _phone.Replace("+", "");
+                    _phone = _phone.Replace("-", "");
+                    if (_phone.StartsWith('7'))
+                        _phone = ReplaceAt(_phone, 0, '8');
 
-                if (loggingUser == null){
+                    long loggingPhone = long.Parse(_phone.Trim());
+                    Employee? loggingUser = Dispatcher.DbContext.Employees
+                        .FirstOrDefault(c => c.Phone == loggingPhone);
 
-                    await Helpers.Message.Send(botClient, update,
-                        msg: "Такой номер мне неизвестен(" +
-                             "\nПопробуйте ещё раз");
+                    if (loggingUser == null)
+                    {
+                        await Helpers.Message.Send(botClient, update,
+                            msg: "Такой номер мне неизвестен(" +
+                                 "\nПопробуйте ещё раз");
+                    }
+                    else
+                    {
+                        handler!.GetCache<AuthStepCache>().Phone = loggingPhone;
 
-                }else{
-
-                    handler!.GetCache<AuthStepCache>().Phone = loggingPhone;
-
-                    handler!.RegisterNextStep(StepTwo);
-                    await Helpers.Message.Send(botClient, update,
-                        msg: $"Такой номер я знаю!" +
-                             "\nТеперь введите логин");
+                        handler!.RegisterNextStep(StepTwo);
+                        await Helpers.Message.Send(botClient, update,
+                            msg: $"Такой номер я знаю!" +
+                                 "\nТеперь введите логин",
+                            option: new OptionMessage() { ClearMenu = true });
+                    }
                 }
+                else throw new Exception("🚫Ошибка!\nОжидался другой ответ");
             }
-            else
-                await Helpers.Message.Send(botClient, update, msg: "Что-то пошло не так...");
+            catch (Exception ex) { await Helpers.Message.Send(botClient, update, msg: ex.Message); }
         }
 
         public static async Task StepTwo(ITelegramBotClient botClient, Update update) // Кэшировать логин. Запросить пароль
         {
-            var handler = update.GetStepHandler<StepTelegram>();
-            Message? message = update.Message;
-
-            if (message != null && message.Type == MessageType.Text && !string.IsNullOrEmpty(message.Text))
+            try
             {
-                string loggingLogin = message.Text;
-                long loggingPhone = handler!.GetCache<AuthStepCache>().Phone;
-                Employee? loggingUser = Dispatcher.DbContext.Employees
-                    .FirstOrDefault(c => c.Phone == loggingPhone && c.Login == loggingLogin);
+                var handler = update.GetStepHandler<StepTelegram>();
+                Message? message = update.Message;
 
-                if (loggingUser == null){
+                if (message != null && message.Type == MessageType.Text && !string.IsNullOrEmpty(message.Text))
+                {
+                    string loggingLogin = message.Text;
+                    long loggingPhone = handler!.GetCache<AuthStepCache>().Phone;
+                    Employee? loggingUser = Dispatcher.DbContext.Employees
+                        .FirstOrDefault(c => c.Phone == loggingPhone && c.Login == loggingLogin);
 
-                    await Helpers.Message.Send(botClient, update,
-                        msg: "Неверный логин(" +
-                             "\nПопробуте ещё раз, или начните авторизацию сначала(/start - /login)");
+                    if (loggingUser == null)
+                    {
+                        await Helpers.Message.Send(botClient, update,
+                            msg: "Неверный логин(" +
+                                 "\nВведите повторно, или начните авторизацию сначала(/start - /login)");
+                    }
+                    else
+                    {
+                        handler!.GetCache<AuthStepCache>().Login = loggingLogin;
 
-                }else{
-
-                    handler!.GetCache<AuthStepCache>().Login = loggingLogin;
-
-                    handler!.RegisterNextStep(StepThree);
-                    await Helpers.Message.Send(botClient, update,
-                        msg: "Теперь пароль");
+                        handler!.RegisterNextStep(StepThree);
+                        await Helpers.Message.Send(botClient, update,
+                            msg: "Теперь пароль");
+                    }
                 }
+                else throw new Exception("🚫Ошибка!\nОжидался другой ответ");
             }
-            else
-                await Helpers.Message.Send(botClient, update, msg: "Что-то пошло не так...");
+            catch (Exception ex) { await Helpers.Message.Send(botClient, update, msg: ex.Message); }
         }
 
         public static async Task StepThree(ITelegramBotClient botClient, Update update) // Авторизовать пользователя. Очистить кэш
         {
-            var handler = update.GetStepHandler<StepTelegram>();
-            Message? message = update.Message;
-
-            if (message != null && message.Type == MessageType.Text && !string.IsNullOrEmpty(message.Text))
+            try
             {
-                string loggingPassword = message.Text;
-                string loggingLogin = handler!.GetCache<AuthStepCache>().Login;
-                long loggingPhone = handler!.GetCache<AuthStepCache>().Phone;
-                Employee? loggingUser = Dispatcher.DbContext.Employees
-                    .FirstOrDefault(c => c.Phone == loggingPhone && c.Login == loggingLogin && c.Password == loggingPassword);
+                var handler = update.GetStepHandler<StepTelegram>();
+                Message? message = update.Message;
 
-                if (loggingUser == null){
+                if (message != null && message.Type == MessageType.Text && !string.IsNullOrEmpty(message.Text))
+                {
+                    string loggingPassword = message.Text;
+                    string loggingLogin = handler!.GetCache<AuthStepCache>().Login;
+                    long loggingPhone = handler!.GetCache<AuthStepCache>().Phone;
+                    Employee? loggingUser = Dispatcher.DbContext.Employees
+                        .FirstOrDefault(c => c.Phone == loggingPhone && c.Login == loggingLogin && c.Password == loggingPassword);
 
-                    await Helpers.Message.Send(botClient, update,
-                        msg: "Неверный пароль(" +
-                             "\nПопробуте ещё раз, или начните авторизацию сначала(/start - /login)");
+                    if (loggingUser == null)
+                    {
 
-                }else{
+                        await Helpers.Message.Send(botClient, update,
+                            msg: "Неверный пароль(" +
+                                 "\nПопробуте ещё раз, или начните авторизацию сначала(/start - /login)");
 
-                    loggingUser.TgBotChatId = update.GetChatId();
-                    Dispatcher.DbContext.SaveChanges(SchedulerDbContext.ChangeLogLevel.Primary, $"Telegram bot confirmed a user - \"{loggingUser.Name}\"");
+                    }
+                    else
+                    {
 
-                    await Helpers.Message.Send(botClient, update,
-                        msg: $"Здравствуйте, {loggingUser.Name}!");
+                        loggingUser.TgBotChatId = update.GetChatId();
+                        Dispatcher.DbContext.SaveChanges(SchedulerDbContext.ChangeLogLevel.Primary, $"Telegram bot confirmed a user - \"{loggingUser.Name}\"");
 
-                    await Dispatcher.ShowMainMenu(botClient, update);
-                    update.ClearStepUserHandler();
+                        await Helpers.Message.Send(botClient, update,
+                            msg: $"Здравствуйте, {loggingUser.Name}!");
+
+                        await Dispatcher.ShowMainMenu(botClient, update);
+                        update.ClearStepUserHandler();
+                    }
                 }
+                else throw new Exception("🚫Ошибка!\nОжидался другой ответ");
             }
-            else
-                await Helpers.Message.Send(botClient, update, msg: "Что-то пошло не так...");
+            catch (Exception ex) { await Helpers.Message.Send(botClient, update, msg: ex.Message); }
+        }
+
+        public static async Task BreakStepCmd(ITelegramBotClient botClient, Update update)
+        {
+            update.ClearStepUserHandler();
+            await Helpers.Message.Send(botClient, update,
+                        msg: $"Выполнение команды прервано");
         }
 
 

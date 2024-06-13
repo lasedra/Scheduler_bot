@@ -6,6 +6,7 @@ using Telegram.Bot.Types.ReplyMarkups;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Helpers = PRTelegramBot.Helpers;
+using PRTelegramBot.Attributes;
 
 namespace Scheduler_bot
 {
@@ -66,11 +67,14 @@ namespace Scheduler_bot
         }
 
 
+
+        [ReplyMenuHandler("/menu")]
         public static async Task ShowMainMenu(ITelegramBotClient botClient, Update update)
         {
             var menuContent = new List<KeyboardButton>()
             {
-                new("Назначить занятие⤵")
+                new("Назначить занятие ⤵"),
+                new("Расписание на неделю 📆")
             };
             var menu = MenuGenerator.ReplyKeyboard(1, menuContent);
 
