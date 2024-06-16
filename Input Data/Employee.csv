@@ -1,0 +1,12 @@
+"ФИО","Login","Password","Phone_Number","E-mail"
+"Мурзина Татьяна Витальевна","murzina_login","murzina_password","murzina_phone",NULL
+"Саибназарова Парвина Хусниддиновна","saibnazarova_login","saibnazarova_password","saibnazarova_phone",NULL
+"Сидорина Владислава Евгеньевна","sidorina_login","sidorina_password","sidorina_phone",NULL
+"Кириллин Николай Владимирович","kirillin_login","kirillin_password","kirillin_phone",NULL
+"Шапошникова Кира Александровна","shaposhnikova_login","shaposhnikova_password","shaposhnikova_phone",NULL
+"Адамейко Алина Сергеевна","adameyko_login","adameyko_password","adameyko_phone",NULL
+"Федорченко Дмитрий Евгеньевич","fedor4enko_login","fedor4enko_password","fedor4enko_phone",NULL
+"Тебина Ольга Вячеславовна","tebina_login","tebina_password","tebina_phone",NULL
+admin","admin","il_admin","+79776736876","praktikasuppport@mail.ru"
+"Истомин Владимир Константинович","istomin_login","istomin_password","istomin_phone",NULL
+"Кузнецова Виктория Александровна","kuznetsova_login","kuznetsova_password","kuznetsova_phone",NULL

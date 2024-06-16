@@ -5,6 +5,7 @@
     <TargetFramework>net7.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <ApplicationIcon>Resources\winico.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
@@ -46,6 +47,7 @@
 
   <ItemGroup>
     <None Remove="C:\Users\.eski\.nuget\packages\prtelegrambot\0.5.5.1\build\\README.txt" />
+    <None Remove="Resources\botico.png" />
   </ItemGroup>
 
   <ItemGroup>
@@ -56,6 +58,13 @@
 
   <ItemGroup>
     <Content Remove="C:\Users\.eski\.nuget\packages\prtelegrambot\0.5.5.1\build\\README.txt" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Resources\botico.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="Resources\winico.ico" />
   </ItemGroup>
 
   <ItemGroup>

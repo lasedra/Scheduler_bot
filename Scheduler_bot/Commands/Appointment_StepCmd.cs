@@ -252,7 +252,7 @@ namespace Scheduler_bot.Commands
                             handler!.GetCache<AppointmentStepCache>().DayOfTheWeek = DayOfWeek.Thursday;
                             goto allowNextStep;
                         case "пт":
-                            handler!.GetCache<AppointmentStepCache>().DayOfTheWeek = DayOfWeek.Saturday;
+                            handler!.GetCache<AppointmentStepCache>().DayOfTheWeek = DayOfWeek.Friday;
                             goto allowNextStep;
 
                         allowNextStep:
@@ -266,7 +266,7 @@ namespace Scheduler_bot.Commands
                                                                                                   c.OfDate >= currentWeek.WeekStart &&
                                                                                                   c.OfDate <= currentWeek.WeekEnd &&
                                                                                                   c.OfDate.DayOfWeek == handler!.GetCache<AppointmentStepCache>().DayOfTheWeek)
-                                                                                      .OrderByDescending(c => c.ClassNumber)
+                                                                                      .OrderBy(c => c.ClassNumber)
                                                                                       .ToList();
                             var menuContent = new List<KeyboardButton>();
                             foreach (var lesson in openLessons)
